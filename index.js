@@ -14,14 +14,48 @@ function requireApiKey(request) {
   return false;
 }
 
+// 处理 OPTIONS 请求的函数
+function handleOptions(request) {
+  const headers = new Headers({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, anthropic-version, model',
+    'Access-Control-Max-Age': '86400',
+  });
+
+  return new Response(null, {
+    status: 204,
+    headers: headers
+  });
+}
+
+// 设置CORS头部的函数
+function setCorsHeaders(response) {
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, anthropic-version, model');
+  return response;
+}
+
 // 主处理函数
 async function handleRequest(request) {
+  // 处理 OPTIONS 请求
+  if (request.method === 'OPTIONS') {
+    return handleOptions(request);
+  }
+
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
+    return setCorsHeaders(new Response(JSON.stringify({ error: "Method not allowed" }), { 
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    }));
   }
 
   if (!requireApiKey(request)) {
-    return new Response(JSON.stringify({ error: "Invalid or missing API key" }), { status: 401 });
+    return setCorsHeaders(new Response(JSON.stringify({ error: "Invalid or missing API key" }), { 
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    }));
   }
 
   const data = await request.json();
@@ -51,13 +85,13 @@ async function handleRequest(request) {
 
     if (stream) {
       // 处理流式响应
-      return new Response(response.body, {
+      return setCorsHeaders(new Response(response.body, {
         headers: { 'Content-Type': 'text/event-stream' }
-      });
+      }));
     } else {
       const result = await response.json();
       const content = result.choices[0].message.content;
-      return new Response(JSON.stringify({
+      return setCorsHeaders(new Response(JSON.stringify({
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
@@ -79,10 +113,13 @@ async function handleRequest(request) {
         }
       }), {
         headers: { 'Content-Type': 'application/json' }
-      });
+      }));
     }
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return setCorsHeaders(new Response(JSON.stringify({ error: error.message }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    }));
   }
 }
 
